@@ -36,6 +36,16 @@ function base64DecToArr (sBase64, nBlocksSize) {
   return taBytes;
 }
 
+function uint8ArrToHexString(arr) {
+	return Array.prototype.map.call(arr, function(n) {
+		var s = n.toString(16);
+		if(s.length == 1) {
+			s = '0'+s;
+		}
+		return s;
+	}).join(' ');
+}
+
 window.iBeacon = {
 
 /** Start scanning for beacons.
@@ -50,17 +60,11 @@ window.iBeacon = {
 startScan: function(region, win, fail) {
 	evothings.ble.startScan(function(device) {
 		var sr = base64DecToArr(device.scanRecord);
-		console.log("found device: srl " + sr.byteLength + "("+device.scanRecord.length+"), name: " + device.name);
-		console.log(Array.prototype.map.call(sr, function(n) {
-			var s = n.toString(16);
-			if(s.length == 1) {
-				s = '0'+s;
-			}
-			return s;
-		}).join(' '));
+		//console.log("found device: srl " + sr.byteLength + "("+device.scanRecord.length+"), name: " + device.name);
+		//console.log(uint8ArrToHexString(sr));
 		//console.log(device.scanRecord);
-		if(sr.byteLength == 30) {
-			var beacon = parseScanRecord(device, sr);
+		var beacon = iBeacon.parseScanRecord(device, sr);
+		if(beacon) {
 			var filtered = (region && ((region.uuid && beacon.uuid != region.uuid) ||
 				(region.major && region.major != beacon.major) ||
 				(region.minor && region.minor != beacon.minor)));
@@ -68,31 +72,45 @@ startScan: function(region, win, fail) {
 				return;
 			}
 			win(beacon);
+		} else {
+			console.log(device.address+" ("+device.name+") was not an iBeacon.");
 		}
 	}, fail);
 },
 
 // returns a Beacon
 parseScanRecord: function(device, sr) {
-	var b = device;
-	b.region = {
-		uuid: sr[9,16],
-		major: sr[25,2],
-		major: sr[27,2],
+	for(var pos = 2; pos < 6; pos++) {
+		if(sr[pos+0] == 0x4c &&
+			sr[pos+1] == 0x00 &&
+			sr[pos+2] == 0x02 &&
+			sr[pos+3] == 0x15)
+		{	// it's a beacon.
+			var uuid = new Uint8Array(sr.buffer, pos+4, 16);
+			//var ids = new Uint8Array(sr.buffer, pos+20, 2);	// fails with "RangeError: softshould be a multiple ofr"
+			var ids = new Uint16Array(sr.buffer.slice(pos+20), 0, 2);
+			var b = device;
+			b.region = {
+				uuid: uuid,
+				major: ids[0],
+				minor: ids[1],
+			}
+			b.txPower = new Int8Array(sr.buffer, pos+24, 1)[0];
+			// power = C * sqrt(distance)
+			// distance = power^2 * C
+			// decibel = power^x
+			// distance = decibel * C
+			b.estimatedDistance = b.rssi / b.txPower;
+			b.state = 0;
+			return b;
+		}
 	}
-	b.txPower = sr[29];
-	// power = C * sqrt(distance)
-	// distance = power^2 * C
-	// decibel = power^x
-	// distance = decibel * C
-	b.estimatedDistance = b.rssi / b.txPower;
-	b.state = 0;
-	return b;
+	return null;
 },
 
 /** Describes an iBeacon region.
 * @typedef {Object} Region
-* @property {string} uuid - Formatted according to RFC 4122. Usually identifies the manufacturer of the beacon.
+* @property {Uint8Array} uuid - 16 bytes long. Usually identifies the manufacturer of the beacon.
 * @property {number} major - Unsigned 16-bit integer. Usually identifies a particular set of beacons.
 * @property {number} minor - Unsigned 16-bit integer. Usually identifies the beacon within a set.
 */
@@ -108,7 +126,7 @@ parseScanRecord: function(device, sr) {
 * The form of the address depends on the host platform.
 * @property {number} rssi - A negative integer, the signal strength in decibels.
 * @property {string} name - The device's name, or nil.
-* @property {string} scanRecord - A string of bytes. For iBeacons, its length is always 9+16+2+2+1=30.
+* @property {string} scanRecord - Base64-encoded binary data.
 * @property {Region} region - Parsed from scanRecord.
 * @property {number} txPower - RSSI at a distance of 1 meter, measured by the manufacturer. Parsed from scanRecord.
 * @property {number} estimatedDistance - Calculated from rssi and txPower.
