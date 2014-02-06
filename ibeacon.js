@@ -73,7 +73,7 @@ startScan: function(region, win, fail) {
 			}
 			win(beacon);
 		} else {
-			console.log(device.address+" ("+device.name+") was not an iBeacon.");
+			//console.log(device.address+" ("+device.name+") was not an iBeacon.");
 		}
 	}, fail);
 },
@@ -96,11 +96,7 @@ parseScanRecord: function(device, sr) {
 				minor: ids[1],
 			}
 			b.txPower = new Int8Array(sr.buffer, pos+24, 1)[0];
-			// power = C * sqrt(distance)
-			// distance = power^2 * C
-			// decibel = power^x
-			// distance = decibel * C
-			b.estimatedDistance = b.rssi / b.txPower;
+			b.estimatedDistance = iBeacon.calculateAccuracy(b.rssi, b.txPower);
 			b.state = 0;
 			return b;
 		}
@@ -145,6 +141,15 @@ stopScan: function() {
 	evothings.ble.stopScan();
 },
 
+calculateAccuracy: function(rssi, txPower) {
+	var ratio = rssi*1.0/txPower;
+	if (ratio < 1.0) {
+		return Math.pow(ratio,10);
+	} else {
+		return (0.89976)*Math.pow(ratio, 7.7095) + 0.111;
+	}
+},
+
 /** Connect to a beacon.
 * <p>Will periodically update the device's RSSI and estimated distance, and report these values to the supplied callback.</p>
 * <p>The callback will also be called when the connection state changes.
@@ -164,7 +169,8 @@ connect: function(beacon, win, fail) {
 		}
 		function rssiHandler(rssi) {
 			beacon.rssi = rssi;
-			beacon.estimatedDistance = beacon.rssi / beacon.txPower;
+			beacon.estimatedDistance = iBeacon.calculateAccuracy(beacon.rssi, beacon.txPower);
+
 			win(beacon);
 			setTimeout(doRssi, 1000);
 		}
