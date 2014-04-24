@@ -1,0 +1,11 @@
+/build
+/.cordova
+/log.txt
+/plugins
+/merges
+/platforms
+/www/config.xml
+/www/css
+/www/img
+/www/js/ibeacon.js
+/www/res
