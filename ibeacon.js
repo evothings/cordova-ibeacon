@@ -160,12 +160,12 @@ This is likely to happen often, as beacons move out of range, or back into range
 * @param {failCallback} fail
 */
 connect: function(beacon, win, fail) {
-	evothings.ble.connect(beacon.address, function(handle, state) {
-		beacon.state = state;
-		beacon._handle = handle
+	evothings.ble.connect(beacon.address, function(info) {
+		beacon.state = info.state;
+		beacon._handle = info.deviceHandle;
 		win(beacon);
 		function doRssi() {
-			evothings.ble.rssi(handle, rssiHandler, fail);
+			evothings.ble.rssi(handle.deviceHandle, rssiHandler, fail);
 		}
 		function rssiHandler(rssi) {
 			beacon.rssi = rssi;
