@@ -52,7 +52,7 @@ window.iBeacon = {
 * <p>Found devices and errors will be reported to the supplied callbacks.</p>
 * <p>Will keep scanning indefinitely until you call stopScan().</p>
 * <p>Calling this function while scanning is in progress will continue scanning with the new region.</p>
-* @param {Region} region - All components are optional. Beacons will be filtered based on the components that are present.
+* @param {Region} region(s) - All components are optional. Beacons will be filtered based on the components that are present.
 * If no components are present, all beacons in range will be reported.
 * @param {scanCallback} win
 * @param {failCallback} fail
